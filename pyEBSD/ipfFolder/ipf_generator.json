@@ -1,0 +1,109 @@
+{
+    "0": {
+        "CellAttributeMatrixName": "CellData",
+        "CellEnsembleAttributeMatrixName": "CellEnsembleData",
+        "DataContainerName": "ImageDataContainer",
+        "DegreesToRadians": 1,
+        "EdaxHexagonalAlignment": 1,
+        "FilterVersion": "6.5.141",
+        "Filter_Enabled": true,
+        "Filter_Human_Label": "Import Oxford Instr. EBSD Data (.ctf)",
+        "Filter_Name": "ReadCtfData",
+        "Filter_Uuid": "{d1df969c-0428-53c3-b61d-99ea2bb6da28}",
+        "InputFile": "/home/emmanuel/Desktop/EBSD_thesis_codes/pyEBSD/ipfFolder/ipf_gen_temp.ctf"
+    },
+    "1": {
+        "CellAttributeMatrixPath": {
+            "Attribute Matrix Name": "CellData",
+            "Data Array Name": "",
+            "Data Container Name": "ImageDataContainer"
+        },
+        "FilterVersion": "6.5.141",
+        "Filter_Enabled": true,
+        "Filter_Human_Label": "Rotate Sample Reference Frame",
+        "Filter_Name": "RotateSampleRefFrame",
+        "Filter_Uuid": "{e25d9b4c-2b37-578c-b1de-cf7032b5ef19}",
+        "RotationAngle": 180,
+        "RotationAxis": {
+            "x": 0,
+            "y": 1,
+            "z": 0
+        }
+    },
+    "2": {
+        "DestinationArrayName": "Mask",
+        "FilterVersion": "1.2.815",
+        "Filter_Enabled": true,
+        "Filter_Human_Label": "Threshold Objects",
+        "Filter_Name": "MultiThresholdObjects",
+        "Filter_Uuid": "{014b7300-cf36-5ede-a751-5faf9b119dae}",
+        "SelectedThresholds": [
+            {
+                "Attribute Array Name": "Error",
+                "Attribute Matrix Name": "CellData",
+                "Comparison Operator": 2,
+                "Comparison Value": 0,
+                "Data Container Name": "ImageDataContainer"
+            }
+        ]
+    },
+    "3": {
+        "CellEulerAnglesArrayPath": {
+            "Attribute Matrix Name": "CellData",
+            "Data Array Name": "EulerAngles",
+            "Data Container Name": "ImageDataContainer"
+        },
+        "CellIPFColorsArrayName": "IPFColor1",
+        "CellPhasesArrayPath": {
+            "Attribute Matrix Name": "CellData",
+            "Data Array Name": "Phases",
+            "Data Container Name": "ImageDataContainer"
+        },
+        "CrystalStructuresArrayPath": {
+            "Attribute Matrix Name": "CellEnsembleData",
+            "Data Array Name": "CrystalStructures",
+            "Data Container Name": "ImageDataContainer"
+        },
+        "FilterVersion": "6.5.141",
+        "Filter_Enabled": true,
+        "Filter_Human_Label": "Generate IPF Colors",
+        "Filter_Name": "GenerateIPFColors",
+        "Filter_Uuid": "{a50e6532-8075-5de5-ab63-945feb0de7f7}",
+        "GoodVoxelsArrayPath": {
+            "Attribute Matrix Name": "CellData",
+            "Data Array Name": "Mask",
+            "Data Container Name": "ImageDataContainer"
+        },
+        "ReferenceDir": {
+            "x": 0,
+            "y": 0,
+            "z": 1
+        },
+        "UseGoodVoxels": 1
+    },
+    "4": {
+        "Delimiter": 0,
+        "FileExtension": ".txt",
+        "FilterVersion": "1.2.815",
+        "Filter_Enabled": true,
+        "Filter_Human_Label": "Export ASCII Data",
+        "Filter_Name": "WriteASCIIData",
+        "Filter_Uuid": "{5fbf9204-2c6c-597b-856a-f4612adbac38}",
+        "MaxValPerLine": -1,
+        "OutputFilePath": "/home/emmanuel/Desktop/EBSD_thesis_codes/pyEBSD/ipfFolder/ipf_temp_file.csv",
+        "OutputPath": "/home/emmanuel/Desktop/EBSD_thesis_codes/pyEBSD/ipfFolder",
+        "OutputStyle": 1,
+        "SelectedDataArrayPaths": [
+            {
+                "Attribute Matrix Name": "CellData",
+                "Data Array Name": "IPFColor1",
+                "Data Container Name": "ImageDataContainer"
+            }
+        ]
+    },
+    "PipelineBuilder": {
+        "Name": "ipf_generator",
+        "Number_Filters": 5,
+        "Version": 6
+    }
+}
