@@ -97,6 +97,10 @@ def read_ctf(filename: str, missing_phase: int=None):
     min_y = data[:, y_col].min()
     x_inds = ( (data[:, x_col] - min_x) / x_step ).astype(int)
     y_inds = ( (data[:, y_col] - min_y) / y_step ).astype(int)
+    
+    x_inds = np.array([i for j in range(num_y) for i in range(num_x)]); #print(x_inds[:50],'\n', x_inds_test[:50])
+    y_inds = np.array([j for j in range(num_y) for i in range(num_x)]); #print(y_inds[:50],'\n', y_inds_test[:50])
+    
     if volumetric:
         min_z = data[:, z_col].min()
         z_inds = ( (data[:, z_col] - min_z) / z_step ).astype(int)
@@ -138,7 +142,6 @@ def read_mat(fname: str, filetype='none'):
     All possibilities were not considered.
     If error message is returned, you may need to check code for bug
     """
-    
     temp = loadmat(fname)
     try:
         return np.rad2deg(temp[filetype])
@@ -162,8 +165,10 @@ def save_csv_as_ctf_file(csv_file, ctf_file=None, xstep=1, ystep=1, original_fil
     phase  = np.empty( (num_x_cells, num_y_cells), dtype=int )
     angles = np.empty( (num_x_cells, num_y_cells, 3), dtype=float )
     
-    for j in range(num_y_cells):
-        for i in range(num_x_cells):
+    for i in range(num_x_cells):
+        for j in range(num_y_cells):
+    # for j in range(num_y_cells):
+    #     for i in range(num_x_cells):
             data_row = next(csv_data)
             phase[i,j] = int( data_row[0] )
             angles[i,j,0] = float( data_row[1] )
@@ -171,7 +176,7 @@ def save_csv_as_ctf_file(csv_file, ctf_file=None, xstep=1, ystep=1, original_fil
             angles[i,j,2] = float( data_row[3] )
     
     
-    if np.nanmax(angles) > 180:
+    if np.nanmax(angles) > 90:
         angles = np.deg2rad(angles)
     
     if ctf_file==None:
@@ -193,21 +198,28 @@ def save_ang_data_as_ctf(filename, angles, xstep=1, ystep=1,
     nx,ny = angles.shape[:2]
     int_zeros_array = np.zeros((nx,ny), dtype=int)
 
+    if original_file is not None:
+        f = open( original_file, 'rt' )
+        header_lines = []
+        for line in f:
+            if line.split()[0] == 'Phase':
+                header_lines.append(line)
+                break
+            header_lines.append(line)
+        f.close()
+        
+        for line in header_lines:
+            if line.startswith('XStep'):  xstep = float( line.split('\t')[1] )
+            if line.startswith('YStep'):  ystep = float( line.split('\t')[1] )
+
     if phase is None:  phase = np.ones_like(int_zeros_array)
     if bands is None:  bands = int_zeros_array
     if error is None:  error = int_zeros_array
     if bc is None:  bc = int_zeros_array
     if bs is None:  bs = int_zeros_array
-    if mad is None:  mad = np.zeros((nx,ny), dtype=float)
+    if mad is None:  mad = np.ones((nx,ny), dtype=float)
 
-    if original_file is not None:
-        f = open( original_file, 'rt' )
-        header_lines = [ f.readline() for line_no in range(n_header_lines) ]
-        f.close()
-        for line in header_lines:
-            if line.startswith('XStep'):  xstep = float( line.split('\t')[1] )
-            if line.startswith('YStep'):  ystep = float( line.split('\t')[1] )
-
+    
     f = open(filename, 'wt')
 
     if original_file is not None:
@@ -228,17 +240,97 @@ def save_ang_data_as_ctf(filename, angles, xstep=1, ystep=1,
                 '??????.?.?	?????	Publication Info ???\n')
         f.write('Phase\tX\tY\tBands\tError\tEuler1\tEuler2\tEuler3\tMAD\tBC\tBS\n')
 
-    angles = np.rad2deg(angles)
+    angles = np.rad2deg(angles); angles[np.isnan(angles)] = 0
     for j in range(ny):
         for i in range(nx):
             x = i * xstep
             y = j * ystep
             euler1, euler2, euler3 = angles[i,j,:]
-
+            if euler1 == 0 and euler2==0 and euler3 == 0:
+                mad[i,j] = 0
+                phase[i,j] = 0
+                
             f.write("%d\t%s\t%s\t%d\t%d\t%s\t%s\t%s\t%s\t%d\t%d\n" %
                     (phase[i,j], str('%6.4f' % x)[:6], str('%6.4f' % y)[:6],
                      bands[i,j], error[i,j], str('%6.4f' % euler1)[:6],
                      str('%6.4f' % euler2)[:6], str('%6.4f' % euler3)[:6],
                      str('%6.4f' % mad[i,j])[:6], bc[i,j], bs[i,j] ))
+            
     f.close()
+    
+    
+    
+    
+def read_ang(filename, coord_index=(3,4), angle_index=(0,1,2),phase_index=None, bands_index=None,
+	     error_index=None, mad_index=None, bc_index=None, bs_index=None, missing_index=None,
+	     missing_label=0, skip_rows=0):
+    """ 
+    The code is for reading EBSD maps in .ang format
+    The code is still in trial phase and so very unreliable.
+    Use with caution.
+    At the moment, only some parameters are active
+    This version only handles 2D maps
+
+    Parameters
+    ----------
+    filename : str - filename of the .ang file with the extension
+    coord_index : tuple - column indices that tells the function where to find the coordinate index.
+                  Should contain 2 values for a 2D EBSD map, and 3 values for a 3D map.
+    angle_index : tuple - column indices that tells the function where to find the coordinate index.
+                  Should contain 3 values for phi1, Phi, and phi2.
+    missing_index: unsure of data type - index of missing values. Not currently in use.
+                   Default is None.
+    skip_rows : int - number of header rows present that need to be skipped
+    
+    Returns
+    -------
+    angles : ndarray - array containing Euler angles
+    """
+    
+    data = np.loadtxt(filename, skiprows=skip_rows )
+
+    x_ind, y_ind = coord_index
+    angle_index = list(angle_index)
+
+    x_coords = np.unique( data[:,x_ind] )
+    y_coords = np.unique( data[:,y_ind] )
+    min_x = x_coords.min()
+    min_y = y_coords.min()
+    num_x = len(x_coords)
+    num_y = len(y_coords)
+    x_step = x_coords[1] - x_coords[0]
+    y_step = y_coords[1] - y_coords[0]
+    
+    # angles = np.zeros( (nx,ny,3) )
+    #===========================================================================
+    print(num_x, num_y)
+    if num_x  is None: raise ValueError("Failed to find XCells in header.")
+    if num_y  is None: raise ValueError("Failed to find YCells in header.")
+    if x_step is None: raise ValueError("Failed to find XStep in header.")
+    if y_step is None: raise ValueError("Failed to find YStep in header.")
+    
+    
+    min_x = data[:, x_ind].min()
+    min_y = data[:, y_ind].min()
+    x_inds = ( (data[:, x_ind] - min_x) / x_step ).astype(int)
+    y_inds = ( (data[:, y_ind] - min_y) / y_step ).astype(int)
+    
+    x_inds = np.array([i for j in range(num_y) for i in range(num_x)]); #print(x_inds[:50],'\n', x_inds_test[:50])
+    y_inds = np.array([j for j in range(num_y) for i in range(num_x)]); #print(y_inds[:50],'\n', y_inds_test[:50])
+    
+    angles_shape = (num_x, num_y, 3)
+    inds = (x_inds, y_inds, slice(None))
+
+    # in case data doesn't exist for some indices
+    angles = np.full(angles_shape, np.nan)
+    angles[inds] = data[:, angle_index]
+    
+    if missing_index is None:
+        # TODO is it safe to assume that any (0, 0, 0) Euler angles indicate a
+        # missing value? It is theoretically possible for this to be known data
+        missing_inds = np.all(angles == 0, axis=angles.ndim-1)
+    
+    angles[missing_inds] = np.nan
+    return angles
+
     

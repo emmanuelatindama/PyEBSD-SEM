@@ -9,6 +9,7 @@ Created on Wed Jul  6 11:03:09 2022
 import subprocess
 # from shutil import move
 import numpy as np
+from csv import reader as csv_reader
 import platform
 import matplotlib.pyplot as plt
 
@@ -20,7 +21,7 @@ import pyEBSD as ebsd
 
 def saveIPFctf(pipeline: str, 
         output_file: str, path_to_dream3d: bool='./',
-        start_num: int=1):
+        start_num: int=1, im_shape=None):
     '''
     Runs a Dream3d pipeline multiple times automatically, naming the output files sequentially
 
@@ -53,24 +54,36 @@ def saveIPFctf(pipeline: str,
     
     subprocess.run([path_to_dream3d+'PipelineRunner', '-p', pipeline], startupinfo=startupinfo)
    
-    im = np.genfromtxt(output_file, skip_header=1, delimiter=',', usecols=(0,1,2))
-    imshape = int(np.sqrt(len(im)))
-    im = im.reshape(imshape, imshape, 3)
+    # im = np.genfromtxt(output_file, skip_header=1, delimiter=',', usecols=(0,1,2))
+    csv_data = csv_reader( open( output_file, 'rt' ) )
+    next(csv_data)
+    num_x_cells, num_y_cells, _ = im_shape
+    angles = np.empty( (num_x_cells, num_y_cells, 3), dtype=int )
     
-    return np.rot90(im/255,1)
+    
+    for j in range(num_y_cells):
+        for i in range(num_x_cells):
+            data_row = next(csv_data)
+            angles[i,j,0] = float( data_row[0] )
+            angles[i,j,1] = float( data_row[1] )
+            angles[i,j,2] = float( data_row[2] )
+    
+    
+    
+    return np.flipud(angles/255)
 
 
-def plotIPF(arr: np.ndarray):
-    ebsd.fileio.save_ang_data_as_ctf('/home/emmanuel/Desktop/EBSD_thesis_codes/pyEBSD/ipfFolder/ipf_gen_temp.ctf',arr)
+def plotIPF(arr: np.ndarray, original_ctf=None):
+    ebsd.fileio.save_ang_data_as_ctf('/home/emmanuel/Desktop/EBSD_thesis_codes/pyEBSD/ipfFolder/ipf_gen_temp.ctf',arr, original_file = original_ctf)
     
-    im = saveIPFctf(pipeline='/home/emmanuel/Desktop/EBSD_thesis_codes/pyEBSD/ipfFolder/ipf_generator.json', output_file='/home/emmanuel/Desktop/EBSD_thesis_codes/pyEBSD/ipfFolder/ipf_temp_file.csv', path_to_dream3d='/home/emmanuel/Desktop/EBSD_thesis_codes/pyEBSD/ipfFolder/DREAM3D/bin')
+    im = saveIPFctf(pipeline='/home/emmanuel/Desktop/EBSD_thesis_codes/pyEBSD/ipfFolder/ipf_generator.json', output_file='/home/emmanuel/Desktop/EBSD_thesis_codes/pyEBSD/ipfFolder/ipf_temp_file.csv', path_to_dream3d='/home/emmanuel/Desktop/EBSD_thesis_codes/pyEBSD/ipfFolder/DREAM3D/bin', im_shape=arr.shape)
     plt.imshow(im);plt.axis('off')
     return
 
-def saveIPF(arr: np.ndarray):
-    ebsd.fileio.save_ang_data_as_ctf('/home/emmanuel/Desktop/EBSD_thesis_codes/pyEBSD/ipfFolder/ipf_gen_temp.ctf',arr)
+def saveIPF(arr: np.ndarray, original_ctf=None):
+    ebsd.fileio.save_ang_data_as_ctf('/home/emmanuel/Desktop/EBSD_thesis_codes/pyEBSD/ipfFolder/ipf_gen_temp.ctf',arr, original_file = original_ctf)
     
-    im = saveIPFctf(pipeline='/home/emmanuel/Desktop/EBSD_thesis_codes/pyEBSD/ipfFolder/ipf_generator.json', output_file='/home/emmanuel/Desktop/EBSD_thesis_codes/pyEBSD/ipfFolder/ipf_temp_file.csv', path_to_dream3d='/home/emmanuel/Desktop/EBSD_thesis_codes/pyEBSD/ipfFolder/DREAM3D/bin')
+    im = saveIPFctf(pipeline='/home/emmanuel/Desktop/EBSD_thesis_codes/pyEBSD/ipfFolder/ipf_generator.json', output_file='/home/emmanuel/Desktop/EBSD_thesis_codes/pyEBSD/ipfFolder/ipf_temp_file.csv', path_to_dream3d='/home/emmanuel/Desktop/EBSD_thesis_codes/pyEBSD/ipfFolder/DREAM3D/bin', im_shape=arr.shape)
     return im.astype('float32')
 
 # if __name__=='__main__':

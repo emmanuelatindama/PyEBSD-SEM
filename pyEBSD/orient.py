@@ -17,111 +17,6 @@ import skimage.morphology as skmorph
 
 
 
-def misorientation(a:np.ndarray, b:np.ndarray):
-    """
-    The inputs of a and b should be vectors (Euler angles-Bunge notation)
-    For now, input must be in degrees
-    
-    step 1: convert a and be to rotation matrices
-    step 2: multiply them to obtain a resultant rotation matrix
-    step 3: change the rotation matrix to the axis-angle representation
-    
-    returns:The value of the angle is the deviation 
-    """
-    
-    # Check whether Euler angles are in degrees or radian
-    if np.max(a) > 2*np.pi: # if max value is greater than 2pi, then it is in degrees
-        a = np.deg2rad(a)   # convert to radians
-    if np.max(b) > 2*np.pi: # if max value is greater than 2pi, then it is in degrees
-        b = np.deg2rad(b)   # convert to radians
-    
-    # Orientation 1
-    g1_phi1 = np.array([cos(a[0]), sin(a[0]), 0, -sin(a[0]), cos(a[0]), 0, 0, 0, 1]).reshape(3,3)
-    g1_Phi  = np.array([1, 0, 0, 0, cos(a[1]), sin(a[1]), 0, -sin(a[1]), cos(a[1])]).reshape(3,3)
-    g1_phi2 = np.array([cos(a[2]), sin(a[2]), 0, -sin(a[2]), cos(a[2]), 0, 0, 0, 1]).reshape(3,3)
-    g1 = np.matmul(np.matmul(g1_phi2,g1_Phi),g1_phi1)
-    
-    
-    # Orientation 2
-    g2_phi1 = np.array([cos(b[0]), sin(b[0]), 0, -sin(b[0]), cos(b[0]), 0, 0, 0, 1]).reshape(3,3)
-    g2_Phi  = np.array([1, 0, 0, 0, cos(b[1]), sin(b[1]), 0, -sin(b[1]), cos(b[1])]).reshape(3,3)
-    g2_phi2 = np.array([cos(b[2]), sin(b[2]), 0, -sin(b[2]), cos(b[2]), 0, 0, 0, 1]).reshape(3,3)
-    g2 = np.matmul(np.matmul(g2_phi2,g2_Phi),g2_phi1) # this is the rotation matrix
-    
-    
-    # Misorientation
-    misori = np.matmul(np.transpose(g1),g2)
-    
-    spur_g = misori[0,0]+misori[1,1]+misori[2,2]; #print(spur_g) # this computes the trace
-    w = np.rad2deg(acos((spur_g-1.0000000001)/2))  # this is the angle of misorientation omega
-    "we write 1 as 1.0000000001 to avoid floating point errors  that occur when spur_g is >3 due to floating point errors"
-    
-    return w
-
-def misorientation_map(A:np.ndarray, B:np.ndarray):
-    """
-    The inputs of a and b should be vectors (Euler angles-Bunge notation)
-    For now, input must be in degrees
-    
-    step 1: convert a and be to rotation matrices
-    step 2: multiply them to obtain a resultant rotation matrix
-    step 3: change the rotation matrix to the axis-angle representation
-    
-    The value of the angle is the deviation 
-    """
-    l,w,h = A.shape
-    misori = np.empty((l,w))
-    for i in range(l):
-        for j in range(w):
-            misori[i,j] = misorientation(A[i,j],B[i,j])
-    
-    return misori
-
-
-def misorientation_error(A:np.ndarray, B:np.ndarray):
-    """
-    The inputs of a and b should be vectors (Euler angles-Bunge notation)
-    For now, input must be in degrees
-    
-    step 1: convert a and be to rotation matrices
-    step 2: multiply them to obtain a resultant rotation matrix
-    step 3: change the rotation matrix to the axis-angle representation
-    
-    The value of the angle is the deviation 
-    """
-    l,w,h = A.shape
-    misori = np.empty((l,w))
-    for i in range(l):
-        for j in range(w):
-            misori[i,j] = misorientation(A[i,j],B[i,j])
-    
-    return round(np.deg2rad(np.mean(misori)),3)
-
-
-def local_misorientation(A:np.ndarray):
-    """
-    The input, A should be vectors (Euler angles-Bunge notation)
-    For now, input must be in degrees
-    
-    step 1: convert a and be to rotation matrices
-    step 2: multiply them to obtain a resultant rotation matrix
-    step 3: change the rotation matrix to the axis-angle representation
-    
-    The value of the angle is the deviation 
-    """
-    
-    l,w,h = A.shape
-    horiz_misori = np.zeros_like(A[:,:,0])
-    vert_misori  = np.zeros_like(A[:,:,0])
-    
-    for i in range(l-1):
-        for j in range(w-1):
-            horiz_misori[i,j] = misorientation(A[i,j],A[i,j+1])
-            vert_misori[i,j]  = misorientation(A[i,j],A[i+1,j])
-    
-    return .5*(horiz_misori + vert_misori)
-
-
 
 
 def SNR(a: np.ndarray, b: np.ndarray):
@@ -255,8 +150,7 @@ def clean_360_jumps(arr, window_size = 3):
     
     Output: a numpy array of the preprocessed file is returned. The output range is from 0 to 2*pi, so it has to
             standardized to view properly.
-            For experiments sake, we return the input file as well to make it easier for comparing of results
-    --------------------------------------------------------------------------------------------------------------
+            For experiments sake, we return the input file as well to make it easier for comparing of results --------------------------------------------------------------------------------------------------------------
     Example:
     test = preprocess("Synthetic_test_noisy.ctf")
     plt.imshow(test/(2*pi))
@@ -423,13 +317,15 @@ def clean_360_jumps(arr, window_size = 3):
 
 
 
+
 def clean_discontinuities(ebsd_data):
     try:
         cleaned = clean_360_jumps(ebsd_data)
     except ValueError:
-        print('Oops! noise is too low for preprocessing')
+        print('No preprocessing needed! noise is too low for preprocessing')
         cleaned = ebsd_data
     return cleaned
+
 
 
 
@@ -439,77 +335,86 @@ def fill_isolated_with_median(u, num_iterations=3):
         --------------------------------------------------------------
         Input:
         u : is the input image 
-        num_iterations: the number of times we will repeat the inpainting
-                        process on the image. The default value is 20
-        
+        num_iterations: the number of times we will repeat the inpainting process on the image. The default value is 20
         Output: 
         returns the inpainted data.
         --------------------------------------------------------------
     """
-    """inpainting isolated points"""
+    """shape of isolated points"""
     f1 = np.asarray([[1, 1, 1],
                      [1, 0, 1],
                      [1, 1, 1]])
     
-    f2 = np.asarray([[1, 1, 1, 1, 1],
-                     [1, 0, 0, 0, 1],
-                     [1, 1, 0, 1, 1],
-                     [1, 1, 0, 1, 1],
-                     [1, 1, 1, 1, 1]])
+    f2 = np.asarray([[1, 1, 1],
+                     [1, 0, 0],
+                     [1, 0, 1]])
     
-    f3 = np.asarray([[1, 1, 1, 1, 1],
-                     [1, 1, 1, 1, 1],
-                     [1, 1, 0, 0, 1],
-                     [1, 1, 0, 1, 1],
-                     [1, 1, 1, 1, 1]])
+    f3 = np.asarray([[1, 1, 1],
+                     [0, 0, 0],
+                     [1, 0, 1],
+                     [1, 0, 1]])
     
-    f4 = np.asarray([[1, 1, 1, 1, 1],
-                     [1, 1, 1, 1, 1],
-                     [1, 1, 0, 0, 1],
-                     [1, 1, 1, 0, 1],
-                     [1, 1, 1, 1, 1]])
+    f4 = np.asarray([[1, 0, 0, 1],
+                     [1, 1, 0, 1],
+                     [1, 1, 1, 1]])
     
-    f5 = np.asarray([[1, 1, 1, 1, 1],
-                     [1, 1, 1, 0, 1],
-                     [1, 1, 0, 0, 1],
-                     [1, 1, 1, 1, 1],
-                     [1, 1, 1, 1, 1]])
+    f5 = np.asarray([[1, 1, 1, 1],
+                     [1, 1, 0, 1],
+                     [1, 0, 0, 1],
+                     [1, 1, 1, 1]])
 
-    f6 = np.asarray([[1, 1, 1, 1, 1],
-                     [1, 1, 0, 1, 1],
-                     [1, 1, 0, 0, 1],
-                     [1, 1, 1, 1, 1],
+    f6 = np.asarray([[1, 1, 1, 1],
+                     [1, 0, 1, 1],
+                     [1, 0, 0, 1],
+                     [1, 1, 1, 1]])
+    
+    f7 = np.asarray([[1, 1, 1, 1, 1],
+                     [1, 0, 0, 0, 1],
                      [1, 1, 1, 1, 1]])
+    
+    f8 = np.asarray([[1, 1, 1],
+                     [1, 0, 1],
+                     [1, 0, 1],
+                     [1, 0, 1]])
+    
+    f9 = np.asarray([[1, 1, 1, 1],
+                     [0, 0, 1, 1],
+                     [0, 0, 0, 1],
+                     [1, 0, 1, 1],
+                     [1, 1, 1, 1]])
+    
+    f10 = np.asarray([[1, 0, 1, 1, 1],
+                      [1, 0, 0, 1, 1],
+                      [1, 1, 0, 1, 1],
+                      [1, 1, 0, 0, 1]])
+    
+    f11 = np.asarray([[1, 1, 1, 1],
+                      [1, 0, 0, 1],
+                      [1, 0, 0, 1],
+                      [1, 1, 1, 1]])
+    
+    f11 = np.asarray([[1, 1, 1, 1],
+                      [1, 1, 0, 1],
+                      [1, 0, 1, 1],
+                      [1, 1, 0, 1]])
+    
+    f12 = np.asarray([[1, 1, 1, 1],
+                      [1, 0, 1, 1],
+                      [1, 1, 0, 1],
+                      [1, 0, 1, 1]])
     
     u_inpainted = u.copy()
     inpainted = np.zeros_like(u)
+    result = np.zeros(inpainted.shape[0:2]).astype('int')
     for k in range(num_iterations):
         for i in range(u_inpainted.shape[2]):
             A = u_inpainted[:,:,i]
             """condition 1: value greater or less than all of its 3x3 neighbors by magnitude of 0.05 or more"""
-            condition1a = A - scipy.ndimage.maximum_filter(A, footprint=f1, mode='constant') > 0.05
-            condition1b = A - scipy.ndimage.minimum_filter(A, footprint=f1, mode='constant') < -0.05
+            condition1a = A - scipy.ndimage.maximum_filter(A, footprint=f1, mode='nearest') > 0.05
+            condition1b = A - scipy.ndimage.minimum_filter(A, footprint=f1, mode='nearest') < -0.05
             """condition 2: value greater or less than all of its 5x5 neighbors by magnitude of 0.05 or more"""
-            condition2a = A - scipy.ndimage.maximum_filter(A, footprint=f2, mode='constant') > 0.05
-            condition2b = A - scipy.ndimage.minimum_filter(A, footprint=f2, mode='constant') < -0.05            
-            "The value is 1 if condition is true. Else, the value is 0."
-            result = np.zeros(A.shape)
-            result[condition1a|condition1b|condition2a|condition2b]=1
-       
-            inpainted[:,:,i] = median_filter(A,3)
-            for x in range(inpainted.shape[0]):
-                for y in range(inpainted.shape[1]):
-                    if result[x,y]==1:
-                        u_inpainted[x,y,i] = inpainted[x,y,i]
-    for k in range(num_iterations):
-        for i in range(u_inpainted.shape[2]):
-            A = u_inpainted[:,:,i]
-            """condition 1: value greater or less than all of its 3x3 neighbors by magnitude of 0.05 or more"""
-            condition1a = A - scipy.ndimage.maximum_filter(A, footprint=f1, mode='constant') > 0.05
-            condition1b = A - scipy.ndimage.minimum_filter(A, footprint=f1, mode='constant') < -0.05
-            """condition 2: value greater or less than all of its 5x5 neighbors by magnitude of 0.05 or more"""
-            condition2a = A - scipy.ndimage.maximum_filter(A, footprint=f2, mode='constant') > 0.05
-            condition2b = A - scipy.ndimage.minimum_filter(A, footprint=f2, mode='constant') < -0.05
+            condition2a = A - scipy.ndimage.maximum_filter(A, footprint=f2, mode='nearest') > 0.05
+            condition2b = A - scipy.ndimage.minimum_filter(A, footprint=f2, mode='nearest') < -0.05 
             """condition 3: value greater or less than all of its 5x5 neighbors by magnitude of 0.05 or more"""
             condition3a = A - scipy.ndimage.maximum_filter(A, footprint=f3, mode='constant') > 0.05
             condition3b = A - scipy.ndimage.minimum_filter(A, footprint=f3, mode='constant') < -0.05
@@ -522,18 +427,47 @@ def fill_isolated_with_median(u, num_iterations=3):
             """condition 6: value greater or less than all of its 5x5 neighbors by magnitude of 0.05 or more"""
             condition6a = A - scipy.ndimage.maximum_filter(A, footprint=f6, mode='constant') > 0.05
             condition6b = A - scipy.ndimage.minimum_filter(A, footprint=f6, mode='constant') < -0.05
-                      
+            """condition 7: value greater or less than all of its 3x5 neighbors by magnitude of 0.05 or more"""
+            condition7a = A - scipy.ndimage.maximum_filter(A, footprint=f7, mode='nearest') > 0.05
+            condition7b = A - scipy.ndimage.minimum_filter(A, footprint=f7, mode='nearest') < -0.05
+            """condition 8: value greater or less than all of its 5x3 neighbors by magnitude of 0.05 or more"""
+            condition8a = A - scipy.ndimage.maximum_filter(A, footprint=f8, mode='nearest') > 0.05
+            condition8b = A - scipy.ndimage.minimum_filter(A, footprint=f8, mode='nearest') < -0.05
+            """condition 9: value greater or less than all of its 5x4 neighbors by magnitude of 0.05 or more"""
+            condition9a = A - scipy.ndimage.maximum_filter(A, footprint=f9, mode='nearest') > 0.05
+            condition9b = A - scipy.ndimage.minimum_filter(A, footprint=f9, mode='nearest') < -0.05
+            """condition 10: value greater or less than all of its 5x3 neighbors by magnitude of 0.05 or more"""
+            condition10a = A - scipy.ndimage.maximum_filter(A, footprint=f10, mode='nearest') > 0.05
+            condition10b = A - scipy.ndimage.minimum_filter(A, footprint=f10, mode='nearest') < -0.05
+            """condition 11: value greater or less than all of its 5x3 neighbors by magnitude of 0.05 or more"""
+            condition11a = A - scipy.ndimage.maximum_filter(A, footprint=f11, mode='nearest') > 0.05
+            condition11b = A - scipy.ndimage.minimum_filter(A, footprint=f11, mode='nearest') < -0.05
+            """condition 10: value greater or less than all of its 5x3 neighbors by magnitude of 0.05 or more"""
+            condition12a = A - scipy.ndimage.maximum_filter(A, footprint=f12, mode='nearest') > 0.05
+            condition12b = A - scipy.ndimage.minimum_filter(A, footprint=f12, mode='nearest') < -0.05
+            
             "The value is 1 if condition is true. Else, the value is 0."
-            result = np.zeros(A.shape)
-            result[condition1a|condition1b|condition2a|condition2b|condition3a|condition3b]=np.nan
-            result[condition4a|condition4b|condition5a|condition5b|condition6a|condition6b]=np.nan
+            result[condition1a|condition1b|condition2a|condition2b|condition3a|condition3b|condition4a|condition4b|condition5a|condition5b|condition6a|condition6b
+                  |condition7a|condition7b|condition8a|condition8b|condition9a|condition9b|condition10a|condition10b|condition11a|condition11b|condition12a|condition12b]=1
+            # plt.imshow(result); plt.show()
             
             inpainted[:,:,i] = median_filter(A,3)
             for x in range(inpainted.shape[0]):
                 for y in range(inpainted.shape[1]):
                     if result[x,y]==1:
-                        u_inpainted[x,y,i] = inpainted[x,y,i]       
+                        u_inpainted[x,y,i] = inpainted[x,y,i]
+    
+    mask = np.zeros_like(u)
+    for i in range(result.shape[0]):
+        for j in range(result.shape[1]):
+            mask[i,j] = result[i,j]
+    # plt.figure(); plt.imshow(mask/1); np.save('mask.npy', mask)
+    
+    # dilated_mask = np.zeros_like(u); dilated_mask[skmorph.binary_dilation(result[:,:])] = 1; plt.figure(); plt.imshow(dilated_mask/1)
+    # np.save('dialated_mask.npy', dilated_mask)
+    
     return u_inpainted
+
 
 
 
@@ -545,101 +479,139 @@ def apply_median_filter(arr: np.ndarray):
 
 
 
-"""Inpainting isolated points with ebsd flow"""
-def inpaint_isolated_pts(u, num_iterations=3, threshold=.05):
+
+
+
+def get_isolated_mask(u, num_iterations=3):
     """
         Identifies the isolated points in and image and inpaints them.
         --------------------------------------------------------------
         Input:
-        u : is the input image
-        
-        num_iterations: the number of times we will repeat the inpainting
-                        process on the image. The default value is 20
+        u : is the input image 
+        num_iterations: the number of times we will repeat the inpainting process on the image. The default value is 20
         Output: 
         returns the inpainted data.
         --------------------------------------------------------------
     """
-    """inpainting isolated points"""
+    """shape of isolated points"""
     f1 = np.asarray([[1, 1, 1],
                      [1, 0, 1],
                      [1, 1, 1]])
+    
+    f2 = np.asarray([[1, 1, 1],
+                     [1, 0, 0],
+                     [1, 0, 1]])
+    
+    f3 = np.asarray([[1, 1, 1],
+                     [0, 0, 0],
+                     [1, 0, 1],
+                     [1, 0, 1]])
+    
+    f4 = np.asarray([[1, 0, 0, 1],
+                     [1, 1, 0, 1],
+                     [1, 1, 1, 1]])
+    
+    f5 = np.asarray([[1, 1, 1, 1],
+                     [1, 1, 0, 1],
+                     [1, 0, 0, 1],
+                     [1, 1, 1, 1]])
 
-    f2 = np.asarray([[1, 1, 1, 1, 1],
+    f6 = np.asarray([[1, 1, 1, 1],
+                     [1, 0, 1, 1],
+                     [1, 0, 0, 1],
+                     [1, 1, 1, 1]])
+    
+    f7 = np.asarray([[1, 1, 1, 1, 1],
                      [1, 0, 0, 0, 1],
-                     [1, 1, 0, 1, 1],
-                     [1, 1, 0, 1, 1],
                      [1, 1, 1, 1, 1]])
     
-    f3 = np.asarray([[1, 1, 1, 1, 1],
-                     [1, 1, 1, 1, 1],
-                     [1, 1, 0, 0, 1],
-                     [1, 1, 0, 1, 1],
-                     [1, 1, 1, 1, 1]])
+    f8 = np.asarray([[1, 1, 1],
+                     [1, 0, 1],
+                     [1, 0, 1],
+                     [1, 0, 1]])
     
-    f4 = np.asarray([[1, 1, 1, 1, 1],
-                     [1, 1, 1, 1, 1],
-                     [1, 1, 0, 0, 1],
-                     [1, 1, 1, 0, 1],
-                     [1, 1, 1, 1, 1]])
+    f9 = np.asarray([[1, 1, 1, 1],
+                     [0, 0, 1, 1],
+                     [0, 0, 0, 1],
+                     [1, 0, 1, 1],
+                     [1, 1, 1, 1]])
     
-    f5 = np.asarray([[1, 1, 1, 1, 1],
-                     [1, 1, 1, 0, 1],
-                     [1, 1, 0, 0, 1],
-                     [1, 1, 1, 1, 1],
-                     [1, 1, 1, 1, 1]])
-
-    f6 = np.asarray([[1, 1, 1, 1, 1],
-                     [1, 1, 0, 1, 1],
-                     [1, 1, 0, 0, 1],
-                     [1, 1, 1, 1, 1],
-                     [1, 1, 1, 1, 1]])
+    f10 = np.asarray([[1, 0, 1, 1, 1],
+                      [1, 0, 0, 1, 1],
+                      [1, 1, 0, 1, 1],
+                      [1, 1, 0, 0, 1]])
     
-    u_missing = u.copy()
+    f11 = np.asarray([[1, 1, 1, 1],
+                      [1, 0, 0, 1],
+                      [1, 0, 0, 1],
+                      [1, 1, 1, 1]])
+    
+    f11 = np.asarray([[1, 1, 1, 1],
+                      [1, 1, 0, 1],
+                      [1, 0, 1, 1],
+                      [1, 1, 0, 1]])
+    
+    f12 = np.asarray([[1, 1, 1, 1],
+                      [1, 0, 1, 1],
+                      [1, 1, 0, 1],
+                      [1, 0, 1, 1]])
+    
+    u_inpainted = u.copy()
+    inpainted = np.zeros_like(u)
+    result = np.zeros(inpainted.shape[0:2]).astype('int')
     for k in range(num_iterations):
-        for i in range(u_missing.shape[2]):
-            A = u_missing[:,:,i]
+        for i in range(u_inpainted.shape[2]):
+            A = u_inpainted[:,:,i]
             """condition 1: value greater or less than all of its 3x3 neighbors by magnitude of 0.05 or more"""
-            condition1a = A - scipy.ndimage.maximum_filter(A, footprint=f1, mode='constant') > threshold
-            condition1b = A - scipy.ndimage.minimum_filter(A, footprint=f1, mode='constant') < -threshold
-
-            "The value is 1 if condition is true. Else, the value is 0."
-            result = np.zeros(A.shape)
-            result[condition1a|condition1b]=np.nan
-            #Set isolated values to nan
-            u_missing[:,:,i] =  u_missing[:,:,i] + result
-        temp = ebsd.inpaint(u_missing, delta_tolerance=1e-5, on_quats=False)
-        u_missing = temp
-        
-    for k in range(num_iterations):
-        for i in range(u_missing.shape[2]):
-            A = u_missing[:,:,i]
-            """condition 1: value greater or less than all of its 3x3 neighbors by magnitude of 0.05 or more"""
-            condition1a = A - scipy.ndimage.maximum_filter(A, footprint=f1, mode='constant') > threshold
-            condition1b = A - scipy.ndimage.minimum_filter(A, footprint=f1, mode='constant') < -threshold
+            condition1a = A - scipy.ndimage.maximum_filter(A, footprint=f1, mode='nearest') > 0.05
+            condition1b = A - scipy.ndimage.minimum_filter(A, footprint=f1, mode='nearest') < -0.05
             """condition 2: value greater or less than all of its 5x5 neighbors by magnitude of 0.05 or more"""
-            condition2a = A - scipy.ndimage.maximum_filter(A, footprint=f2, mode='constant') > threshold
-            condition2b = A - scipy.ndimage.minimum_filter(A, footprint=f2, mode='constant') < -threshold
+            condition2a = A - scipy.ndimage.maximum_filter(A, footprint=f2, mode='nearest') > 0.05
+            condition2b = A - scipy.ndimage.minimum_filter(A, footprint=f2, mode='nearest') < -0.05 
             """condition 3: value greater or less than all of its 5x5 neighbors by magnitude of 0.05 or more"""
-            condition3a = A - scipy.ndimage.maximum_filter(A, footprint=f3, mode='constant') > threshold
-            condition3b = A - scipy.ndimage.minimum_filter(A, footprint=f3, mode='constant') < -threshold
+            condition3a = A - scipy.ndimage.maximum_filter(A, footprint=f3, mode='constant') > 0.05
+            condition3b = A - scipy.ndimage.minimum_filter(A, footprint=f3, mode='constant') < -0.05
             """condition 4: value greater or less than all of its 5x5 neighbors by magnitude of 0.05 or more"""
-            condition4a = A - scipy.ndimage.maximum_filter(A, footprint=f4, mode='constant') > threshold
-            condition4b = A - scipy.ndimage.minimum_filter(A, footprint=f4, mode='constant') < -threshold
+            condition4a = A - scipy.ndimage.maximum_filter(A, footprint=f4, mode='constant') > 0.05
+            condition4b = A - scipy.ndimage.minimum_filter(A, footprint=f4, mode='constant') < -0.05
             """condition 5: value greater or less than all of its 5x5 neighbors by magnitude of 0.05 or more"""
-            condition5a = A - scipy.ndimage.maximum_filter(A, footprint=f5, mode='constant') > threshold
-            condition5b = A - scipy.ndimage.minimum_filter(A, footprint=f5, mode='constant') < -threshold
+            condition5a = A - scipy.ndimage.maximum_filter(A, footprint=f5, mode='constant') > 0.05
+            condition5b = A - scipy.ndimage.minimum_filter(A, footprint=f5, mode='constant') < -0.05
             """condition 6: value greater or less than all of its 5x5 neighbors by magnitude of 0.05 or more"""
-            condition6a = A - scipy.ndimage.maximum_filter(A, footprint=f6, mode='constant') > threshold
-            condition6b = A - scipy.ndimage.minimum_filter(A, footprint=f6, mode='constant') < -threshold
-                      
+            condition6a = A - scipy.ndimage.maximum_filter(A, footprint=f6, mode='constant') > 0.05
+            condition6b = A - scipy.ndimage.minimum_filter(A, footprint=f6, mode='constant') < -0.05
+            """condition 7: value greater or less than all of its 3x5 neighbors by magnitude of 0.05 or more"""
+            condition7a = A - scipy.ndimage.maximum_filter(A, footprint=f7, mode='nearest') > 0.05
+            condition7b = A - scipy.ndimage.minimum_filter(A, footprint=f7, mode='nearest') < -0.05
+            """condition 8: value greater or less than all of its 5x3 neighbors by magnitude of 0.05 or more"""
+            condition8a = A - scipy.ndimage.maximum_filter(A, footprint=f8, mode='nearest') > 0.05
+            condition8b = A - scipy.ndimage.minimum_filter(A, footprint=f8, mode='nearest') < -0.05
+            """condition 9: value greater or less than all of its 5x4 neighbors by magnitude of 0.05 or more"""
+            condition9a = A - scipy.ndimage.maximum_filter(A, footprint=f9, mode='nearest') > 0.05
+            condition9b = A - scipy.ndimage.minimum_filter(A, footprint=f9, mode='nearest') < -0.05
+            """condition 10: value greater or less than all of its 5x3 neighbors by magnitude of 0.05 or more"""
+            condition10a = A - scipy.ndimage.maximum_filter(A, footprint=f10, mode='nearest') > 0.05
+            condition10b = A - scipy.ndimage.minimum_filter(A, footprint=f10, mode='nearest') < -0.05
+            """condition 11: value greater or less than all of its 5x3 neighbors by magnitude of 0.05 or more"""
+            condition11a = A - scipy.ndimage.maximum_filter(A, footprint=f11, mode='nearest') > 0.05
+            condition11b = A - scipy.ndimage.minimum_filter(A, footprint=f11, mode='nearest') < -0.05
+            """condition 10: value greater or less than all of its 5x3 neighbors by magnitude of 0.05 or more"""
+            condition12a = A - scipy.ndimage.maximum_filter(A, footprint=f12, mode='nearest') > 0.05
+            condition12b = A - scipy.ndimage.minimum_filter(A, footprint=f12, mode='nearest') < -0.05
+            
             "The value is 1 if condition is true. Else, the value is 0."
-            result = np.zeros(A.shape)
-            result[condition1a|condition1b|condition2a|condition2b]=np.nan
-            result[condition3a|condition3b|condition4a|condition4b|condition5a|condition5b|condition6a|condition6b]=np.nan
-
-            #Set isolated values to nan
-            u_missing[:,:,i] =  u_missing[:,:,i] + result
-        temp = ebsd.inpaint(u_missing, delta_tolerance=1e-5, on_quats=False)
-        u_missing = temp
-        
-    return u_missing
+            result[condition1a|condition1b|condition2a|condition2b|condition3a|condition3b|condition4a|condition4b|condition5a|condition5b|condition6a|condition6b
+                  |condition7a|condition7b|condition8a|condition8b|condition9a|condition9b|condition10a|condition10b|condition11a|condition11b|condition12a|condition12b]=1
+            # plt.imshow(result); plt.show()
+            
+            inpainted[:,:,i] = median_filter(A,3)
+            for x in range(inpainted.shape[0]):
+                for y in range(inpainted.shape[1]):
+                    if result[x,y]==1:
+                        u_inpainted[x,y,i] = inpainted[x,y,i]
+    
+    mask = np.zeros_like(u)
+    for i in range(result.shape[0]):
+        for j in range(result.shape[1]):
+            mask[i,j] = result[i,j]
+    return mask

@@ -1,4 +1,10 @@
+from sys import path
+path.insert(0, "..") # hack to get module `pyEBSD` in scope
+import pyEBSD as ebsd
 import numpy as np
+from math import acos
+import sys
+import time
 from scipy.spatial.transform import Rotation as R
 
 
@@ -34,7 +40,8 @@ __all__ = ['mean_misorientation_ang', 'misorientation_euler', 'misorientation',
 #         ang = np.degrees(ang)
 #     return ang
 
-def rtmean_sq_misorientation_ang(arr1, arr2, symmetry_op = 'cubic'):
+
+def rtmean_sq_misorientation_ang(arr1, arr2, out='rad', symmetry_op = 'cubic'):
     """
     Author: Emmanuel Atoleya Atindama (EAA)
     Computes the mean square misorientation between two arrays containing Euler angles arr1, and arr2, 
@@ -44,9 +51,19 @@ def rtmean_sq_misorientation_ang(arr1, arr2, symmetry_op = 'cubic'):
     Parameters
     ----------
     e1 : numpy ndarray shape(n,n,3)
-        First rotation matrix
+        First matrix containing euler angles - values in radians
     e1 : numpy ndarray shape(n,n,3)
-        Second rotation matrix
+        Second matrix containing euler angles - values in radians
+    out : str (optional)
+        'deg': as misorientation angle in degrees
+        'rad': as misorientation angle in radians
+        Default: 'rad'
+    symmetry_op : str (optional)
+        Crystal symmetry of the material:
+        'cubic': cubic symmetry has 24 symmetries
+        'hexagonal': hexagonal symmetry has 12 symmetries
+        None: identity as symmetry operator
+    
     Returns
     -------
     misang : float
@@ -55,13 +72,47 @@ def rtmean_sq_misorientation_ang(arr1, arr2, symmetry_op = 'cubic'):
     misori = 0
     for i in range(arr1.shape[0]):
         for j in range(arr1.shape[1]):
-            misori += misorientation_euler(arr1[i,j], arr2[i,j], symmetry_op = symmetry_op)**2
+            misori += misorientation_euler(arr1[i,j], arr2[i,j], out='rad', symmetry_op = symmetry_op)**2
     
     return np.sqrt(misori / (arr1.shape[0]*arr1.shape[1]))
 
 
+def misorientation_mat(arr1, arr2, out = 'rad', symmetry_op = 'cubic'):
+    """
+    Author: Emmanuel Atoleya Atindama (EAA)
+    Computes the average misorientation between two arrays containing Euler angles arr1, and arr2, 
+    with [theta1, Theta, theta2] at each [i,j,:] of arrays 1 and 2.
+    Array shapes are nxnx3. Each 1x1x3 contains 1 euler angle.
+    
+    Parameters
+    ----------
+    arr1 : numpy ndarray shape(n,n,3)
+           First matrix containing euler angles - values in radians
+    arr2 : numpy ndarray shape(n,n,3)
+           Second matrix containing euler angles - values in radians
+    out : str (optional)
+          'deg': as misorientation angle in degrees
+          'rad': as misorientation angle in radians
+          Default: 'rad'
+    symmetry_op : str (optional)
+         Crystal symmetry of the material:
+         'cubic': cubic symmetry has 24 symmetries
+         'hexagonal': hexagonal symmetry has 12 symmetries
+         None: identity as symmetry operator
+    
+    Returns
+    -------
+    misang : ndarray
+        Array containing Misorientation angles
+    """
+    misori = np.zeros((arr1.shape[0], arr1.shape[1]))
+    for i in range(arr1.shape[0]):
+        for j in range(arr1.shape[1]):
+            misori[i,j] = misorientation_euler(arr1[i,j], arr2[i,j], out=out, symmetry_op = symmetry_op) 
+    return misori
 
-def mean_misorientation_ang(arr1, arr2, symmetry_op = 'cubic'):
+
+def mean_misorientation_ang(arr1, arr2, out='rad', symmetry_op = 'cubic'):
     """
     Author: Emmanuel Atoleya Atindama (EAA)
     Computes the average misorientation between two arrays containing Euler angles arr1, and arr2, 
@@ -70,10 +121,20 @@ def mean_misorientation_ang(arr1, arr2, symmetry_op = 'cubic'):
     
     Parameters
     ----------
-    e1 : numpy ndarray shape(n,n,3)
-        First rotation matrix
-   e1 : numpy ndarray shape(n,n,3)
-        Second rotation matrix
+    arr1 : numpy ndarray shape(n,n,3)
+           First matrix containing euler angles - values in radians
+    arr2 : numpy ndarray shape(n,n,3)
+           Second matrix containing euler angles - values in radians
+    out : str (optional)
+          'deg': as misorientation angle in degrees
+          'rad': as misorientation angle in radians
+          Default: 'rad'
+    symmetry_op : str (optional)
+          Crystal symmetry of the material:
+          'cubic': cubic symmetry has 24 symmetries
+          'hexagonal': hexagonal symmetry has 12 symmetries
+          None: identity as symmetry operator
+    
     Returns
     -------
     misang : float
@@ -82,28 +143,30 @@ def mean_misorientation_ang(arr1, arr2, symmetry_op = 'cubic'):
     misori = 0
     for i in range(arr1.shape[0]):
         for j in range(arr1.shape[1]):
-            misori += misorientation_euler(arr1[i,j], arr2[i,j], symmetry_op = symmetry_op) 
+            misori += misorientation_euler(arr1[i,j], arr2[i,j], out = out, symmetry_op = symmetry_op) 
     return misori/(arr1.shape[0]*arr1.shape[1])
+
 
 def misorientation_euler(e1, e2, out = 'rad', symmetry_op = 'cubic'):
     """
     Author: Emmanuel Atoleya Atindama (EAA)
-    Computes the misorientation between two Euler angles e1=[phi1, Phi, phi2], e2=[theta1, Theta, theta2]
+    Computes the misorientation between two Euler angles e1=[phi1, Phi, phi2], e2=[theta1, Theta, theta2] 
     
     Parameters
     ----------
     e1 : numpy ndarray shape(3,1)
-        First rotation matrix
-   e1 : numpy ndarray shape(3, 1)
-        Second rotation matrix
+        First euler angle vector - input values in radians
+    e1 : numpy ndarray shape(3, 1)
+        Second euler angle vector - input values in radians
     out : str (optional)
         'deg': as misorientation angle in degrees
         'rad': as misorientation angle in radians
-        Default: 'deg'
+        Default: 'rad'
     symmetry_op : str (optional)
         Crystal symmetry of the material:
         'cubic': cubic symmetry has 24 symmetries
         'hexagonal': hexagonal symmetry has 12 symmetries
+        None: identity as symmetry operator
         Default: 'cubic'
     
     Returns
@@ -127,7 +190,8 @@ def misorientation(A, B, out='rad', symmetry_op:str='cubic'):
     """
     Original Author: Arthur Nishikawa (https://github.com/arthursn/pyebsd/blob/master/pyebsd/ebsd/orientation.py)
     Modified by: Emmanuel Atoleya Atindama (EAA)
-    Calculates the misorientation between two rotation matrices, A & B
+    Calculates the misorientation between two rotation matrices, A & B 
+    
     Parameters
     ----------
     A : numpy ndarray shape(3, 3)
@@ -139,15 +203,14 @@ def misorientation(A, B, out='rad', symmetry_op:str='cubic'):
         'tr': as a trace value of the misorientation matrix
         'deg': as misorientation angle in degrees
         'rad': as misorientation angle in radians
-        Default: 'deg'
+        Default: 'rad'
     symmetry_op : str (optional) - Included by EAA
-        Crystal symmefrom math import acos
-import sys
-import time
-        symmetry of the material:
+        Crystal symmetry of the material:
         'cubic': cubic symmetry has 24 symmetries
         'hexagonal': hexagonal symmetry has 12 symmetries
+        if symmetry_op is None, no symmetry operator is applied.
         Default: 'cubic'
+    
     Returns
     -------
     misang : float
